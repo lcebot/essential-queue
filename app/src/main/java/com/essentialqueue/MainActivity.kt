@@ -165,6 +165,16 @@ private fun App(tick: Int) {
         Queue.start(ctx)
     }
 
+    // The queue runs without it, but the progress notification of the foreground service needs it.
+    val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { startQueue() }
+    fun requestStart() {
+        if (ctx.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        } else {
+            startQueue()
+        }
+    }
+
     val scroll = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     Scaffold(
@@ -173,11 +183,6 @@ private fun App(tick: Int) {
             LargeFlexibleTopAppBar(
                 title = { Text(stringResource(R.string.app_name)) },
                 subtitle = { Text(stringResource(R.string.subtitle)) },
-                actions = {
-                    IconButton(onClick = { haptic.tap(); doScan() }, enabled = !scanning && !running) {
-                        Icon(Icons.Rounded.Refresh, contentDescription = stringResource(R.string.action_scan))
-                    }
-                },
                 scrollBehavior = scroll,
             )
         },
@@ -188,7 +193,7 @@ private fun App(tick: Int) {
                 ExtendedFloatingActionButton(
                     onClick = {
                         if (running) { haptic.tap(); Queue.pause(Queue.Msg(R.string.msg_paused_manually)) }
-                        else { haptic.confirm(); startQueue() }
+                        else { haptic.confirm(); requestStart() }
                     },
                     icon = { Icon(if (running) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, null) },
                     text = {
@@ -230,7 +235,9 @@ private fun App(tick: Int) {
                 }
             }
 
+            // Settings cannot change while a queue runs, so they step aside to keep the status in view.
             item {
+                AnimatedVisibility(visible = !running) {
                 DateRangeCard(
                     start = rangeStart, end = rangeEnd, today = todayUtc,
                     enabled = !running && !scanning,
@@ -238,9 +245,14 @@ private fun App(tick: Int) {
                     onQuick = { days -> haptic.toggle(true); rangeEnd = todayUtc; rangeStart = todayUtc - (days - 1) * DAY_MS },
                     onScan = { haptic.confirm(); doScan() },
                 )
+                }
             }
 
-            item { SettingsCard(enabled = !running, tick = tick) }
+            item {
+                AnimatedVisibility(visible = !running) {
+                    SettingsCard(enabled = !running, tick = tick)
+                }
+            }
 
             item {
                 Column(Modifier.fillMaxWidth().animateContentSize()) {
@@ -284,8 +296,12 @@ private fun App(tick: Int) {
                 }
             }
 
-            if (photos.isEmpty() && !scanning) {
-                item { EmptyHint() }
+            if (!scanning) {
+                when {
+                    lastScan == null -> item { EmptyHint() }
+                    photos.isEmpty() -> item { ListNote(stringResource(R.string.empty_none)) }
+                    visible.isEmpty() -> item { ListNote(stringResource(R.string.empty_filtered)) }
+                }
             }
 
             itemsIndexed(visible, key = { _, p -> p.id }) { i, p ->
@@ -373,14 +389,19 @@ private fun DateRangeCard(
                 Row(Modifier.padding(horizontal = 20.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Rounded.DateRange, null)
                     Spacer(Modifier.width(12.dp))
+                    // titleMedium keeps a full yyyy-MM-dd on one line on narrow phones, and maxLines guards
+                    // against large font scales breaking a date in the middle.
                     Column(Modifier.weight(1f)) {
                         Text(stringResource(R.string.date_from), style = MaterialTheme.typography.labelMedium)
-                        Text(fmtUtcDay(start), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                        Text(fmtUtcDay(start), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
+                            maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                     }
-                    Icon(Icons.AutoMirrored.Rounded.ArrowForward, null)
+                    Icon(Icons.AutoMirrored.Rounded.ArrowForward, null,
+                        Modifier.padding(horizontal = 8.dp).size(20.dp))
                     Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
                         Text(stringResource(R.string.date_to), style = MaterialTheme.typography.labelMedium)
-                        Text(fmtUtcDay(end), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                        Text(fmtUtcDay(end), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
+                            maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
@@ -554,7 +575,8 @@ private fun SetupCard(
             SetupRow(Icons.Rounded.Edit, stringResource(R.string.setup_editor_title),
                 stringResource(R.string.setup_editor_desc), editorOk, null, {})
             if (autoMode) SetupRow(Icons.Rounded.TouchApp, stringResource(R.string.setup_a11y_title),
-                stringResource(R.string.setup_a11y_desc, stringResource(R.string.a11y_label)), a11yOn,
+                stringResource(R.string.setup_a11y_desc, stringResource(R.string.a11y_label)) + "\n" +
+                    stringResource(R.string.setup_a11y_keep), a11yOn,
                 stringResource(R.string.setup_open), onA11y)
         }
     }
@@ -565,14 +587,15 @@ private fun SetupRow(icon: ImageVector, title: String, desc: String, ok: Boolean
     ListItem(
         colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
         leadingContent = { Icon(icon, null) },
-        headlineContent = { Text(title) },
         supportingContent = { Text(desc) },
         trailingContent = {
             if (ok) Icon(Icons.Rounded.CheckCircle, stringResource(R.string.cd_ready), tint = MaterialTheme.colorScheme.primary)
             else if (action != null) FilledTonalButton(onClick = onAction, shapes = ButtonDefaults.shapes()) { Text(action) }
             else Icon(Icons.Rounded.ErrorOutline, stringResource(R.string.cd_missing), tint = MaterialTheme.colorScheme.error)
         },
-    )
+    ) {
+        Text(title)
+    }
 }
 
 @Composable
@@ -613,6 +636,13 @@ private fun SettingsCard(enabled: Boolean, tick: Int) {
                 stringResource(if (mode == Queue.Mode.AUTO) R.string.mode_auto_desc else R.string.mode_semi_desc),
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            // The service can be switched off by the system at any time, so the hint stays visible in Auto mode
+            // and not only while the service is missing.
+            if (mode == Queue.Mode.AUTO) {
+                Spacer(Modifier.height(4.dp))
+                Text(stringResource(R.string.setup_a11y_keep),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             Spacer(Modifier.height(20.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(stringResource(R.string.settings_interval), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold,
@@ -631,14 +661,14 @@ private fun SettingsCard(enabled: Boolean, tick: Int) {
             val sliderState = remember(tick) {
                 SliderState(
                     value = interval / maxSecs,
-                    steps = 29,               // 10-second steps are fine enough without making the slider fiddly
+                    steps = 11,               // 5-second steps are fine enough without making the slider fiddly
                 )
             }
             Slider(
                 state = sliderState,
                 onValueChange = {
                     sliderState.value = it
-                    val snapped = (it * maxSecs / 10f).roundToInt() * 10f
+                    val snapped = (it * maxSecs / 5f).roundToInt() * 5f
                     // Tick once per step rather than per drag event, so the feedback matches the detents.
                     if (snapped != interval) {
                         val wasCautious = interval * 1000 >= Queue.CAUTIOUS_INTERVAL_MS
@@ -684,10 +714,6 @@ private fun PhotoRow(
             modifier = Modifier.clickable(enabled = enabled, onClick = onToggle),
             colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
             leadingContent = { Thumb(p.uri, p.mode) },
-            headlineContent = {
-                Text(Instant.ofEpochMilli(p.takenMs).atZone(ZoneId.systemDefault()).format(TIME_FMT),
-                    fontWeight = FontWeight.Medium)
-            },
             supportingContent = {
                 val sizeText = stringResource(R.string.size_mb, p.size / 1_048_576.0)
                 val processedText = stringResource(R.string.tag_processed)
@@ -702,7 +728,22 @@ private fun PhotoRow(
                 Text(tags.joinToString(infoSep), maxLines = 2, overflow = TextOverflow.Ellipsis)
             },
             trailingContent = { Checkbox(checked = checked, onCheckedChange = { onToggle() }, enabled = enabled) },
-        )
+        ) {
+            Text(Instant.ofEpochMilli(p.takenMs).atZone(ZoneId.systemDefault()).format(TIME_FMT),
+                fontWeight = FontWeight.Medium)
+        }
+    }
+}
+
+@Composable
+private fun ListNote(text: String) {
+    Surface(shape = RoundedCornerShape(24.dp), color = MaterialTheme.colorScheme.surfaceContainerLow,
+        modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Rounded.Info, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.width(12.dp))
+            Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 

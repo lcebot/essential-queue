@@ -173,9 +173,9 @@ object EssentialScanner {
                     }
                 }
                 // Some M3 photos set UseMainImage=1 and carry no RAW tail, so there is nothing to check.
-                val useMainImage = main!!["UseMainImage"]?.toIntOrNull() == 1
+                val useMainImage = main["UseMainImage"]?.toIntOrNull() == 1
                 if (!useMainImage) {
-                    if (!tailMatches(ch, fileLen, main!!)) return Inspect.Broken
+                    if (!tailMatches(ch, fileLen, main)) return Inspect.Broken
                 }
                 meta?.let { if (!tailMatches(ch, fileLen, it)) return Inspect.Broken }
 

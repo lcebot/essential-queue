@@ -5,7 +5,7 @@
     <string name="a11y_label">Essential Queue: tap Start</string>
     <string name="a11y_desc">Only acts while this app\'s queue is running and has just opened a photo in the Gallery Editor. It taps the Leica Essential \"Start\" button (com.miui.mediaeditor:id/render_start) once, then goes back. It does not read other apps or tap anything else.</string>
 
-    <string name="subtitle">Queue Leica Essential photos</string>
+    <string name="subtitle">by lcebot</string>
     <string name="action_scan">Scan</string>
     <string name="fab_pause">Pause</string>
     <string name="fab_continue">Continue</string>
@@ -68,6 +68,11 @@
     <string name="tag_sent">Sent before</string>
     <string name="size_mb">%.1f MB</string>
     <string name="empty_title">Pick a date range, then tap \"Scan\"</string>
+    <string name="empty_none">No Leica Essential photos were found in this date range.</string>
+    <string name="empty_filtered">Every photo found is hidden by the filters above.</string>
+    <string name="notif_channel">Queue progress</string>
+    <string name="notif_title">Queue running</string>
+    <string name="setup_a11y_keep">On HyperOS, also allow Autostart and set Battery saver to No restrictions for this app. Otherwise the system may turn the service off.</string>
     <string name="empty_desc">After scanning, uncheck any photos you don\'t want.</string>
     <string name="summary_scanned">Essential originals: %2$d of %1$d scanned</string>
     <string name="summary_modes">" (%s)"</string>

@@ -23,7 +23,7 @@ object Queue {
     const val RENDERING_MENU_ID = "com.miui.mediaeditor:id/rendering_menu"
     const val PROGRESS_ID = "com.miui.mediaeditor:id/render_progress_front"
     const val DEFAULT_INTERVAL_MS = 30_000L
-    const val MAX_INTERVAL_MS = 300_000L
+    const val MAX_INTERVAL_MS = 60_000L
     // Below this the UI shows a warning, since uploads then follow each other almost back to back.
     const val CAUTIOUS_INTERVAL_MS = 30_000L
 
@@ -58,12 +58,19 @@ object Queue {
     private var lastLaunchAt = 0L
     private var phaseStartedAt = 0L
     private var wakeLock: PowerManager.WakeLock? = null
+    // Held so the foreground service can be stopped from paths that have no Context of their own.
+    private var appContext: Context? = null
 
     val current: EssentialScanner.Photo? get() = items.getOrNull(index)
     val nextAllowedAt: Long get() = lastLaunchAt + intervalMs
 
     var listener: (() -> Unit)? = null
-    private fun notifyUi() { ui.post { listener?.invoke() } }
+    private fun notifyUi() {
+        ui.post {
+            listener?.invoke()
+            appContext?.let { QueueService.sync(it) }
+        }
+    }
     fun listenerPing() = notifyUi()
 
     fun load(list: List<EssentialScanner.Photo>) {
@@ -80,7 +87,10 @@ object Queue {
         if (mode == Mode.AUTO && TapStartService.instance == null) {
             message = Msg(R.string.msg_need_a11y); notifyUi(); return
         }
+        appContext = ctx.applicationContext
         acquireWakeLock(ctx)
+        // Must start while the app is in the foreground, which is always true here since only the UI calls start().
+        QueueService.sync(ctx)
         scheduleNext()
     }
 
@@ -115,9 +125,12 @@ object Queue {
         notifyUi()
     }
 
-    /** Semi-auto mode may only launch while this app is in the foreground. */
+    /**
+     * Reschedules a waiting launch whenever the app comes back to the front. A launch attempted while the
+     * app was in the background can be dropped by the system, and scheduleNext keeps the remaining delay.
+     */
     fun onAppResumed() {
-        if (mode == Mode.SEMI && state == State.WAITING) scheduleNext()
+        if (state == State.WAITING) scheduleNext()
     }
 
     private fun scheduleNext() {
@@ -134,15 +147,19 @@ object Queue {
 
     private fun launchCurrent() {
         val p = current ?: return scheduleNext()
-        // Background activity starts are blocked, except from an enabled accessibility service.
-        // So Auto mode launches from the service, and Semi-auto mode only while the activity is resumed.
-        val ctx: Context? = when (mode) {
-            Mode.AUTO -> TapStartService.instance
-            Mode.SEMI -> MainActivity.resumedInstance
-        }
+        // Launching from the resumed activity is the most reliable path: it is never a background start,
+        // and the editor opens inside this app's task, so Back always returns here.
+        // The accessibility service is the fallback for Auto mode, since it may start activities from the
+        // background, but some ROMs still block that.
+        val activity = MainActivity.resumedInstance
+        val ctx: Context? = activity ?: if (mode == Mode.AUTO) TapStartService.instance else null
         if (ctx == null) {
             if (mode == Mode.AUTO) pause(Msg(R.string.msg_a11y_not_running))
             else { state = State.WAITING; message = Msg(R.string.msg_return_to_app); notifyUi() }
+            return
+        }
+        if (mode == Mode.AUTO && TapStartService.instance == null) {
+            pause(Msg(R.string.msg_a11y_not_running))
             return
         }
         // Check the throttle right before launching so no code path can go below the interval.
@@ -152,7 +169,8 @@ object Queue {
         val intent = Intent()
             .setClassName(EDITOR_PKG, EDITOR_ACTIVITY)
             .setData(p.uri)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        if (activity == null) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         try {
             ctx.startActivity(intent)
         } catch (e: Exception) {

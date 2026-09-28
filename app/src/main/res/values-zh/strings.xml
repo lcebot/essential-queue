@@ -4,7 +4,7 @@
     <string name="a11y_label">徕卡一瞬批处理：自动点“开始”</string>
     <string name="a11y_desc">只在本 App 的队列正在运行、且刚刚打开了图库编辑器的徕卡一瞬页面时，替你点击一次“开始处理”按钮（com.miui.mediaeditor:id/render_start），随后返回。不读取其他 App 的内容，不点击其他任何按钮。</string>
 
-    <string name="subtitle">徕卡一瞬一键排队</string>
+    <string name="subtitle">by lcebot</string>
     <string name="action_scan">扫描</string>
     <string name="fab_pause">暂停</string>
     <string name="fab_continue">继续</string>
@@ -66,6 +66,11 @@
     <string name="tag_sent">已发送过</string>
     <string name="size_mb">%.1f MB</string>
     <string name="empty_title">选好日期范围后点“扫描”</string>
+    <string name="empty_none">所选日期范围内没有找到徕卡一瞬照片。</string>
+    <string name="empty_filtered">找到的照片都被上面的筛选条件隐藏了。</string>
+    <string name="notif_channel">队列进度</string>
+    <string name="notif_title">队列运行中</string>
+    <string name="setup_a11y_keep">在 HyperOS 上，还需要允许本 App 自启动，并把省电策略设为“无限制”，否则系统可能会自动关闭这个服务。</string>
     <string name="empty_desc">扫描后可以取消勾选不想处理的照片</string>
     <string name="summary_scanned">在 %1$d 张照片中找到 %2$d 张徕卡一瞬原片</string>
     <string name="summary_modes">（%s）</string>

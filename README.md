@@ -21,7 +21,7 @@ Download the latest APK from [Releases](../../releases) and install it. The app 
 
 1. **Allow photo access** when asked. Choose **Allow all**.
 2. **Turn on the accessibility service** (needed for Auto mode only). Open *Settings*, go to *Accessibility*, then *Downloaded apps*, and turn on *Essential Queue: tap Start*.
-   It is also a good idea to set the app's battery saver to **No restrictions**.
+   On HyperOS, also allow **Autostart** for the app and set its battery saver to **No restrictions**. Otherwise the system may switch the service off.
 3. **Process one photo by hand first.** Use the Gallery as usual. This clears any one-time prompts from the Editor, such as sign-in, notification permission or the mobile data warning.
 4. **Pick a date range** and tap **Scan**.
 5. **Uncheck any photos you don't want**, then tap **Start**.
@@ -34,7 +34,7 @@ Download the latest APK from [Releases](../../releases) and install it. The app 
 | Auto | Opens each photo in the Editor, taps **Start**, waits until processing begins, then goes back. |
 | Semi-auto | Opens each photo in the Editor. You tap **Start** and return to the app, and it opens the next photo when the timer ends. Does not need the accessibility service. |
 
-The Gallery Editor already processes one photo at a time, so the delay is optional. It can be set from 0 to 300 seconds. A longer delay spreads uploads out, which lowers the chance of your account being limited or blocked. The app shows a warning below 30 seconds.
+The Gallery Editor already processes one photo at a time, so the delay is optional. It can be set from 0 to 60 seconds. A longer delay spreads uploads out, which lowers the chance of your account being limited or blocked. The app shows a warning below 30 seconds.
 
 ### If the queue pauses
 
