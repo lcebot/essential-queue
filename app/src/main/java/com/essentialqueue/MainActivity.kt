@@ -34,7 +34,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.hapticfeedback.HapticFeedback
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.drop
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -101,6 +106,7 @@ private fun AppTheme(content: @Composable () -> Unit) {
 @Composable
 private fun App(tick: Int) {
     val ctx = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
 
     var photos by remember { mutableStateOf<List<EssentialScanner.Photo>>(emptyList()) }
@@ -168,7 +174,7 @@ private fun App(tick: Int) {
                 title = { Text(stringResource(R.string.app_name)) },
                 subtitle = { Text(stringResource(R.string.subtitle)) },
                 actions = {
-                    IconButton(onClick = { doScan() }, enabled = !scanning && !running) {
+                    IconButton(onClick = { haptic.tap(); doScan() }, enabled = !scanning && !running) {
                         Icon(Icons.Rounded.Refresh, contentDescription = stringResource(R.string.action_scan))
                     }
                 },
@@ -180,7 +186,10 @@ private fun App(tick: Int) {
                 editorOk && (Queue.mode == Queue.Mode.SEMI || a11yOn)
             AnimatedVisibility(visible = running || canStart) {
                 ExtendedFloatingActionButton(
-                    onClick = { if (running) Queue.pause(Queue.Msg(R.string.msg_paused_manually)) else startQueue() },
+                    onClick = {
+                        if (running) { haptic.tap(); Queue.pause(Queue.Msg(R.string.msg_paused_manually)) }
+                        else { haptic.confirm(); startQueue() }
+                    },
                     icon = { Icon(if (running) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, null) },
                     text = {
                         Text(when {
@@ -202,14 +211,20 @@ private fun App(tick: Int) {
             ),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item { StatusCard(now, running, onSkip = { Queue.skip() }, onMarkDone = { Queue.markCurrentDone(ctx) }) }
+            item {
+                StatusCard(
+                    now, running,
+                    onSkip = { haptic.tap(); Queue.skip() },
+                    onMarkDone = { haptic.confirm(); Queue.markCurrentDone(ctx) },
+                )
+            }
 
             if (!hasPhotoPerm || !editorOk || (Queue.mode == Queue.Mode.AUTO && !a11yOn)) {
                 item {
                     SetupCard(
                         hasPhotoPerm, editorOk, a11yOn, Queue.mode == Queue.Mode.AUTO,
-                        onPhotoPerm = { permLauncher.launch(Manifest.permission.READ_MEDIA_IMAGES) },
-                        onA11y = { ctx.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                        onPhotoPerm = { haptic.tap(); permLauncher.launch(Manifest.permission.READ_MEDIA_IMAGES) },
+                        onA11y = { haptic.tap(); ctx.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
                             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) },
                     )
                 }
@@ -219,9 +234,9 @@ private fun App(tick: Int) {
                 DateRangeCard(
                     start = rangeStart, end = rangeEnd, today = todayUtc,
                     enabled = !running && !scanning,
-                    onPick = { pickerOpen = true },
-                    onQuick = { days -> rangeEnd = todayUtc; rangeStart = todayUtc - (days - 1) * DAY_MS },
-                    onScan = { doScan() },
+                    onPick = { haptic.tap(); pickerOpen = true },
+                    onQuick = { days -> haptic.toggle(true); rangeEnd = todayUtc; rangeStart = todayUtc - (days - 1) * DAY_MS },
+                    onScan = { haptic.confirm(); doScan() },
                 )
             }
 
@@ -234,6 +249,7 @@ private fun App(tick: Int) {
                             modifier = Modifier.weight(1f))
                         if (photos.isNotEmpty()) {
                             TextButton(onClick = {
+                                haptic.tap()
                                 val all = visible.all { selected[it.id] == true }
                                 visible.forEach { selected[it.id] = !all }
                             }, enabled = !running) { Text(stringResource(if (visible.all { selected[it.id] == true }) R.string.select_none else R.string.select_all)) }
@@ -257,10 +273,10 @@ private fun App(tick: Int) {
                     if (photos.isNotEmpty()) {
                         Spacer(Modifier.height(8.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FilterChip(selected = showProcessed, onClick = { showProcessed = !showProcessed },
+                            FilterChip(selected = showProcessed, onClick = { showProcessed = !showProcessed; haptic.toggle(showProcessed) },
                                 label = { Text(stringResource(R.string.filter_show_processed)) },
                                 leadingIcon = if (showProcessed) {{ Icon(Icons.Rounded.Check, null, Modifier.size(18.dp)) }} else null)
-                            FilterChip(selected = showSent, onClick = { showSent = !showSent },
+                            FilterChip(selected = showSent, onClick = { showSent = !showSent; haptic.toggle(showSent) },
                                 label = { Text(stringResource(R.string.filter_show_sent)) },
                                 leadingIcon = if (showSent) {{ Icon(Icons.Rounded.Check, null, Modifier.size(18.dp)) }} else null)
                         }
@@ -279,11 +295,31 @@ private fun App(tick: Int) {
                     enabled = !running,
                     isCurrent = running && Queue.current?.id == p.id,
                     shape = groupedShape(i, visible.size),
-                    onToggle = { selected[p.id] = !(selected[p.id] ?: false) },
+                    onToggle = {
+                        val on = !(selected[p.id] ?: false)
+                        selected[p.id] = on
+                        haptic.toggle(on)
+                    },
                     modifier = Modifier.animateItem(),
                 )
             }
         }
+    }
+
+    // The queue can stop while the user is watching another screen, so the stop itself is felt too.
+    // A pause the user asked for already had its own tap.
+    // Only real transitions count, so reopening the app on a paused or finished queue stays silent.
+    var lastState by remember { mutableStateOf(Queue.state) }
+    LaunchedEffect(Queue.state) {
+        val state = Queue.state
+        if (state != lastState) {
+            when (state) {
+                Queue.State.PAUSED -> if (Queue.message?.id != R.string.msg_paused_manually) haptic.reject()
+                Queue.State.DONE -> haptic.confirm()
+                else -> Unit
+            }
+        }
+        lastState = state
     }
 
     if (pickerOpen) {
@@ -294,6 +330,18 @@ private fun App(tick: Int) {
         )
     }
 }
+
+/*
+ * Haptic vocabulary, so every control speaks the same language:
+ * tap for plain actions, confirm for actions that commit something, toggle for on/off state,
+ * tick for stepping through values, and reject when the queue stops on its own.
+ */
+private fun HapticFeedback.tap() = performHapticFeedback(HapticFeedbackType.ContextClick)
+private fun HapticFeedback.confirm() = performHapticFeedback(HapticFeedbackType.Confirm)
+private fun HapticFeedback.reject() = performHapticFeedback(HapticFeedbackType.Reject)
+private fun HapticFeedback.tick() = performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+private fun HapticFeedback.toggle(on: Boolean) =
+    performHapticFeedback(if (on) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff)
 
 private const val DAY_MS = 24L * 3600 * 1000
 private val DATE_FMT: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd")
@@ -365,6 +413,13 @@ private fun RangePickerDialog(
             override fun isSelectableDate(utcTimeMillis: Long) = utcTimeMillis <= today
         },
     )
+    val haptic = LocalHapticFeedback.current
+    // Day cells live inside DateRangePicker, so watch the selection instead of the taps.
+    LaunchedEffect(state) {
+        snapshotFlow { state.selectedStartDateMillis to state.selectedEndDateMillis }
+            .drop(1)
+            .collect { haptic.tick() }
+    }
     DatePickerDialog(
         onDismissRequest = onDismiss,
         confirmButton = {
@@ -372,11 +427,12 @@ private fun RangePickerDialog(
                 enabled = state.selectedStartDateMillis != null,
                 onClick = {
                     val s = state.selectedStartDateMillis ?: return@TextButton
+                    haptic.confirm()
                     onConfirm(s, state.selectedEndDateMillis ?: s)
                 },
             ) { Text(stringResource(R.string.ok)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+        dismissButton = { TextButton(onClick = { haptic.tap(); onDismiss() }) { Text(stringResource(R.string.cancel)) } },
     ) {
         DateRangePicker(
             state = state,
@@ -522,6 +578,7 @@ private fun SetupRow(icon: ImageVector, title: String, desc: String, ok: Boolean
 @Composable
 private fun SettingsCard(enabled: Boolean, tick: Int) {
     val ctx = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     var interval by remember(tick) { mutableFloatStateOf((Queue.intervalMs / 1000).toFloat()) }
     var mode by remember(tick) { mutableStateOf(Queue.mode) }
     Card(shape = RoundedCornerShape(28.dp), modifier = Modifier.fillMaxWidth(),
@@ -532,14 +589,20 @@ private fun SettingsCard(enabled: Boolean, tick: Int) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)) {
                 ToggleButton(
                     checked = mode == Queue.Mode.AUTO,
-                    onCheckedChange = { mode = Queue.Mode.AUTO; Queue.mode = mode; AppSettings.save(ctx) },
+                    onCheckedChange = {
+                        if (mode != Queue.Mode.AUTO) haptic.toggle(true)
+                        mode = Queue.Mode.AUTO; Queue.mode = mode; AppSettings.save(ctx)
+                    },
                     enabled = enabled,
                     shapes = ButtonGroupDefaults.connectedLeadingButtonShapes(),
                     modifier = Modifier.weight(1f),
                 ) { Icon(Icons.Rounded.AutoMode, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.mode_auto)) }
                 ToggleButton(
                     checked = mode == Queue.Mode.SEMI,
-                    onCheckedChange = { mode = Queue.Mode.SEMI; Queue.mode = mode; AppSettings.save(ctx) },
+                    onCheckedChange = {
+                        if (mode != Queue.Mode.SEMI) haptic.toggle(true)
+                        mode = Queue.Mode.SEMI; Queue.mode = mode; AppSettings.save(ctx)
+                    },
                     enabled = enabled,
                     shapes = ButtonGroupDefaults.connectedTrailingButtonShapes(),
                     modifier = Modifier.weight(1f),
@@ -562,17 +625,34 @@ private fun SettingsCard(enabled: Boolean, tick: Int) {
                 )
             }
             // Stateless Slider overloads are deprecated in the 1.5.0 alpha line, so drive it through SliderState.
+            // The state keeps its default 0..1 range and is scaled to seconds here, because the range
+            // parameter is not stable across the alpha releases.
+            val maxSecs = (Queue.MAX_INTERVAL_MS / 1000).toFloat()
             val sliderState = remember(tick) {
                 SliderState(
-                    value = interval,
+                    value = interval / maxSecs,
                     steps = 29,               // 10-second steps are fine enough without making the slider fiddly
-                    valueRange = 0f..(Queue.MAX_INTERVAL_MS / 1000).toFloat(),
                 )
             }
             Slider(
                 state = sliderState,
-                onValueChange = { sliderState.value = it; interval = it },
-                onValueChangeFinished = { Queue.intervalMs = interval.roundToInt() * 1000L; AppSettings.save(ctx) },
+                onValueChange = {
+                    sliderState.value = it
+                    val snapped = (it * maxSecs / 10f).roundToInt() * 10f
+                    // Tick once per step rather than per drag event, so the feedback matches the detents.
+                    if (snapped != interval) {
+                        val wasCautious = interval * 1000 >= Queue.CAUTIOUS_INTERVAL_MS
+                        val isCautious = snapped * 1000 >= Queue.CAUTIOUS_INTERVAL_MS
+                        // Crossing into the warning range gets a stronger cue than an ordinary step.
+                        if (wasCautious && !isCautious) haptic.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
+                        else haptic.tick()
+                    }
+                    interval = snapped
+                },
+                onValueChangeFinished = {
+                    haptic.performHapticFeedback(HapticFeedbackType.GestureEnd)
+                    Queue.intervalMs = interval.roundToInt() * 1000L; AppSettings.save(ctx)
+                },
                 enabled = enabled,
             )
             Text(stringResource(R.string.interval_hint),
