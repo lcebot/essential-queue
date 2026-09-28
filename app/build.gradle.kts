@@ -20,6 +20,13 @@ android {
         // turn them off with -PenableLogs=false. Every other build keeps them.
         val enableLogs = (project.findProperty("enableLogs") as String?)?.toBooleanStrictOrNull() ?: true
         buildConfigField("boolean", "ENABLE_LOGS", enableLogs.toString())
+
+        // Package native libraries for 64-bit ARM only (Leitzphone / Xiaomi 17 Ultra are arm64-v8a devices).
+        // The app itself is pure Kotlin, so this only matters for any native .so a dependency might ship,
+        // but it keeps the APK single-ABI as requested and future-proofs against such a dependency.
+        ndk {
+            abiFilters += "arm64-v8a"
+        }
     }
 
     // A fixed release key lets new builds install over old ones. Without it the build falls back to the
