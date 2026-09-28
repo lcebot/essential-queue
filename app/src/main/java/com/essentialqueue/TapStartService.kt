@@ -69,6 +69,7 @@ class TapStartService : AccessibilityService() {
             val b = startButton()
             if (Queue.state == Queue.State.OPENING && b != null && b.isVisibleToUser && b.isEnabled &&
                 b.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+                Logs.i { "tapped Start" }
                 Queue.onClicked()
                 pollAccepted()
             } else {
@@ -87,6 +88,10 @@ class TapStartService : AccessibilityService() {
     private fun visible(root: AccessibilityNodeInfo, id: String): Boolean =
         root.findAccessibilityNodeInfosByViewId(id).any { it.isVisibleToUser }
 
+    /** Any one of these is enough, since which of them the tree reports depends on the ROM and the flags. */
+    private fun processingShown(root: AccessibilityNodeInfo): Boolean =
+        visible(root, Queue.RENDERING_MENU_ID) || visible(root, Queue.PROGRESS_ID) || visible(root, Queue.CANCEL_ID)
+
     /**
      * Requires positive evidence that the job was accepted: the Start button is hidden and the processing
      * UI (rendering_menu or the progress bar) is visible. A dialog on top has neither, so it can never be
@@ -96,8 +101,11 @@ class TapStartService : AccessibilityService() {
         val root = rootInActiveWindow ?: return
         if (root.packageName?.toString() != Queue.EDITOR_PKG) return
         val startShown = visible(root, Queue.START_BUTTON_ID)
-        val processing = visible(root, Queue.RENDERING_MENU_ID) || visible(root, Queue.PROGRESS_ID)
-        if (startShown || !processing) return
+        val processing = processingShown(root)
+        if (startShown || !processing) {
+            Logs.d { "not accepted yet: startShown=$startShown processing=$processing" }
+            return
+        }
         clickedOnce = false
         Queue.onAccepted(this)
         // The job runs in the editor's own foreground service, so leaving the screen does not cancel it.
@@ -105,7 +113,7 @@ class TapStartService : AccessibilityService() {
         handler.postDelayed({
             val r = rootInActiveWindow
             if (r?.packageName?.toString() == Queue.EDITOR_PKG &&
-                (visible(r, Queue.RENDERING_MENU_ID) || visible(r, Queue.PROGRESS_ID))) {
+                processingShown(r)) {
                 performGlobalAction(GLOBAL_ACTION_BACK)
             }
         }, 1500)

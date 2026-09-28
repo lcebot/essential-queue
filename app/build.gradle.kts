@@ -16,6 +16,10 @@ android {
         // CI derives these from the git tag (see .github/scripts/version.sh). Local builds use 0.1 and 100.
         versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 100
         versionName = System.getenv("VERSION_NAME") ?: "0.1"
+        // Diagnostic logs help while testing but have no place in a published release, so tag builds
+        // turn them off with -PenableLogs=false. Every other build keeps them.
+        val enableLogs = (project.findProperty("enableLogs") as String?)?.toBooleanStrictOrNull() ?: true
+        buildConfigField("boolean", "ENABLE_LOGS", enableLogs.toString())
     }
 
     // A fixed release key lets new builds install over old ones. Without it the build falls back to the
@@ -57,7 +61,10 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
 }
 
 dependencies {

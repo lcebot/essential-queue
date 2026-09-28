@@ -100,7 +100,9 @@ jobs:
           # Path, type and alias come from GITHUB_ENV. Setting the alias here again would overwrite a detected one with an empty value.
           SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
           SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
-        run: gradle --no-daemon assembleRelease
+          # Releases published from a tag ship without diagnostic logs.
+          ENABLE_LOGS: ${{ startsWith(github.ref, 'refs/tags/') && 'false' || 'true' }}
+        run: gradle --no-daemon assembleRelease -PenableLogs="$ENABLE_LOGS"
 
       # Fail the build unless the APK really carries an APK Signature Scheme v3 block.
       - name: Verify v3 signature

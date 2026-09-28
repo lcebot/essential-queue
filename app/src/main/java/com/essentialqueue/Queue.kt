@@ -22,6 +22,8 @@ object Queue {
     const val START_BUTTON_ID = "com.miui.mediaeditor:id/render_start"
     const val RENDERING_MENU_ID = "com.miui.mediaeditor:id/rendering_menu"
     const val PROGRESS_ID = "com.miui.mediaeditor:id/render_progress_front"
+    // A real Button inside the processing layout, so it is reported even without the not-important views flag.
+    const val CANCEL_ID = "com.miui.mediaeditor:id/render_cancel"
     const val DEFAULT_INTERVAL_MS = 30_000L
     const val MAX_INTERVAL_MS = 60_000L
     // Below this the UI shows a warning, since uploads then follow each other almost back to back.
@@ -48,7 +50,12 @@ object Queue {
     var index = 0
         private set
     var state = State.IDLE
-        private set
+        private set(v) {
+            // Every transition is logged so a stuck queue can be diagnosed with: adb logcat -s EssentialQueue
+            // (debug builds and untagged CI builds only, see Logs)
+            if (field != v) Logs.i { "state $field to $v, index $index of ${items.size}" }
+            field = v
+        }
     /** Stores a resource id and arguments so the UI can format it in the current language. */
     data class Msg(@StringRes val id: Int, val args: List<Any> = emptyList())
 
@@ -95,6 +102,7 @@ object Queue {
     }
 
     fun pause(reason: Msg) {
+        Logs.i { "pause: ${appContext?.getString(reason.id) ?: reason.id}" }
         sched.removeCallbacksAndMessages(null)
         state = State.PAUSED
         message = reason
@@ -171,6 +179,7 @@ object Queue {
             .setData(p.uri)
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         if (activity == null) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        Logs.i { "launching ${p.name} from ${if (activity != null) "activity" else "accessibility service"}" }
         try {
             ctx.startActivity(intent)
         } catch (e: Exception) {
