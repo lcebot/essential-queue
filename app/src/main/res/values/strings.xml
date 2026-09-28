@@ -54,6 +54,8 @@
     <string name="quick_today">Today</string>
     <string name="quick_7_days">Last 7 days</string>
     <string name="quick_30_days">Last 30 days</string>
+    <string name="full_scan_title">Search the whole camera folder for results</string>
+    <string name="full_scan_desc">Slower, but also finds results saved long after the photo was taken.</string>
     <string name="scan_button">Scan DCIM/Camera</string>
     <string name="picker_title">Select dates</string>
     <string name="ok">OK</string>

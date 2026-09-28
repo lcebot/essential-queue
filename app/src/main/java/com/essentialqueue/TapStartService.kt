@@ -14,8 +14,8 @@ import android.view.accessibility.AccessibilityNodeInfo
  *  - It taps id/render_start once, and only while the queue has just opened the editor.
  *  - It never touches dialogs such as sign-in, mobile data or notification prompts. Those stay with the user.
  *
- * An enabled accessibility service may start activities from the background, which is why Auto mode
- * launches the editor from this context.
+ * It never launches the editor itself. Launches come from the resumed activity (see Queue.launchCurrent),
+ * which only happens after this service has pressed Back and the app is in front again.
  */
 class TapStartService : AccessibilityService() {
 

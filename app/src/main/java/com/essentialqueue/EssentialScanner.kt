@@ -58,8 +58,13 @@ object EssentialScanner {
     /**
      * @param fromMs inclusive start, compared against MediaStore.DATE_TAKEN in milliseconds
      * @param toMs   exclusive end
+     * @param fullResultScan look for existing results in the whole camera folder instead of near the range.
+     *   Slower, but a result saved long after its original, or with an unusual DATE_TAKEN, is still found.
      */
-    fun scan(context: Context, fromMs: Long, toMs: Long, progress: (done: Int, total: Int) -> Unit): Result {
+    fun scan(
+        context: Context, fromMs: Long, toMs: Long, fullResultScan: Boolean,
+        progress: (done: Int, total: Int) -> Unit,
+    ): Result {
         val resolver = context.contentResolver
         val collection = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL)
         val projection = arrayOf(
@@ -69,12 +74,18 @@ object EssentialScanner {
             MediaStore.Images.Media.DATE_MODIFIED,
             MediaStore.Images.Media.DATE_TAKEN,
         )
-        val selection = "${MediaStore.Images.Media.RELATIVE_PATH} = ? AND ${MediaStore.Images.Media.MIME_TYPE} = ?" +
-            " AND ${MediaStore.Images.Media.DATE_TAKEN} >= ? AND ${MediaStore.Images.Media.DATE_TAKEN} < ?"
-        // A result image usually shares DATE_TAKEN with its original, but look 30 days further so a
-        // late-saved result is still matched. Rows past toMs are only used for that matching.
-        val outputHorizon = toMs + 30L * 24 * 3600 * 1000
-        val args = arrayOf("DCIM/Camera/", "image/jpeg", fromMs.toString(), outputHorizon.toString())
+        val baseSelection = "${MediaStore.Images.Media.RELATIVE_PATH} = ? AND ${MediaStore.Images.Media.MIME_TYPE} = ?"
+        val (selection, args) = if (fullResultScan) {
+            baseSelection to arrayOf("DCIM/Camera/", "image/jpeg")
+        } else {
+            // A result image usually shares DATE_TAKEN with its original, but look 30 days further so a
+            // late-saved result is still matched.
+            val outputHorizon = toMs + 30L * 24 * 3600 * 1000
+            "$baseSelection AND ${MediaStore.Images.Media.DATE_TAKEN} >= ? AND ${MediaStore.Images.Media.DATE_TAKEN} < ?" to
+                arrayOf("DCIM/Camera/", "image/jpeg", fromMs.toString(), outputHorizon.toString())
+        }
+        // Rows outside [fromMs, toMs) are only used to find existing results, never listed as candidates.
+        fun inRange(taken: Long) = taken in fromMs until toMs
 
         data class Row(val id: Long, val name: String, val size: Long, val mod: Long, val taken: Long)
         val rows = ArrayList<Row>()
@@ -98,14 +109,14 @@ object EssentialScanner {
             progress(idx + 1, rows.size)
             val uri = ContentUris.withAppendedId(collection, r.id)
             try {
-                when (val info = inspect(context, uri, outputsOnly = r.taken >= toMs)) {
-                    is Inspect.Original -> if (r.taken < toMs) candidates += Photo(
+                when (val info = inspect(context, uri, outputsOnly = !inRange(r.taken))) {
+                    is Inspect.Original -> if (inRange(r.taken)) candidates += Photo(
                         r.id, uri, r.name, r.size, r.mod, info.exifDateTime, info.mode, r.taken)
                     is Inspect.Output -> {
                         outputs++
                         info.exifDateTime?.let { processedDateTimes += it }
                     }
-                    Inspect.Broken -> if (r.taken < toMs) broken++
+                    Inspect.Broken -> if (inRange(r.taken)) broken++
                     Inspect.Other -> Unit
                 }
             } catch (_: Exception) {
@@ -116,7 +127,7 @@ object EssentialScanner {
         candidates.forEach { p ->
             p.alreadyProcessed = p.exifDateTime != null && p.exifDateTime in processedDateTimes
         }
-        return Result(candidates, rows.count { it.taken < toMs }, outputs, broken)
+        return Result(candidates, rows.count { inRange(it.taken) }, outputs, broken)
     }
 
     private sealed class Inspect {

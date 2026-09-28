@@ -33,6 +33,9 @@ object Queue {
     private const val BUTTON_TIMEOUT_MS = 25_000L
     // Long enough for the editor to switch to its processing UI, short enough to notice a dialog quickly.
     private const val ACCEPT_TIMEOUT_MS = 10_000L
+    // Coming back from the editor, the accessibility service may still be finishing its Back and the
+    // window transition is still running. A short pause keeps the next launch from landing on top of that.
+    private const val RESUME_SETTLE_MS = 1_000L
 
     enum class Mode { AUTO, SEMI }
     enum class State { IDLE, WAITING, OPENING, CLICKED, PAUSED, DONE }
@@ -64,6 +67,9 @@ object Queue {
     // elapsedRealtime keeps the throttle correct even if the wall clock changes.
     private var lastLaunchAt = 0L
     private var phaseStartedAt = 0L
+    // Launches only ever happen from the resumed activity, so the queue tracks when that was.
+    private var foreground = false
+    private var resumedAt = 0L
     private var wakeLock: PowerManager.WakeLock? = null
     // Held so the foreground service can be stopped from paths that have no Context of their own.
     private var appContext: Context? = null
@@ -134,11 +140,18 @@ object Queue {
     }
 
     /**
-     * Reschedules a waiting launch whenever the app comes back to the front. A launch attempted while the
-     * app was in the background can be dropped by the system, and scheduleNext keeps the remaining delay.
+     * A waiting queue continues as soon as the app is back in front: right away if the countdown already
+     * ran out while the editor was showing, otherwise when it ends. Either way after [RESUME_SETTLE_MS].
      */
     fun onAppResumed() {
+        foreground = true
+        resumedAt = SystemClock.elapsedRealtime()
         if (state == State.WAITING) scheduleNext()
+    }
+
+    /** A launch due while the app is in the background waits for the next [onAppResumed]. */
+    fun onAppPaused() {
+        foreground = false
     }
 
     private fun scheduleNext() {
@@ -147,41 +160,52 @@ object Queue {
             state = State.DONE; message = Msg(R.string.msg_done); releaseWakeLock(); notifyUi(); return
         }
         state = State.WAITING
-        val delay = maxOf(0L, nextAllowedAt - SystemClock.elapsedRealtime())
-        message = if (delay > 0) Msg(R.string.msg_waiting, listOf(((delay + 999) / 1000).toInt())) else Msg(R.string.msg_opening)
+        val now = SystemClock.elapsedRealtime()
+        // The countdown runs from the previous launch, not from the return, so time spent in the editor counts.
+        val countdown = maxOf(0L, nextAllowedAt - now)
+        val settle = if (foreground) maxOf(0L, resumedAt + RESUME_SETTLE_MS - now) else 0L
+        val delay = maxOf(countdown, settle)
+        message = when {
+            countdown > 0 -> Msg(R.string.msg_waiting, listOf(((countdown + 999) / 1000).toInt()))
+            foreground -> Msg(R.string.msg_opening)
+            else -> Msg(R.string.msg_return_to_app)
+        }
         notifyUi()
+        // Scheduled even while in the background, so the message switches to "return to continue"
+        // when the countdown ends.
         sched.postDelayed({ launchCurrent() }, delay)
     }
 
     private fun launchCurrent() {
         val p = current ?: return scheduleNext()
-        // Launching from the resumed activity is the most reliable path: it is never a background start,
-        // and the editor opens inside this app's task, so Back always returns here.
-        // The accessibility service is the fallback for Auto mode, since it may start activities from the
-        // background, but some ROMs still block that.
+        // Launches only come from the resumed activity. That is never a background start, the editor opens
+        // inside this app's task so Back always returns here, and it guarantees the previous editor screen
+        // and the accessibility service are done before the next photo opens.
         val activity = MainActivity.resumedInstance
-        val ctx: Context? = activity ?: if (mode == Mode.AUTO) TapStartService.instance else null
-        if (ctx == null) {
-            if (mode == Mode.AUTO) pause(Msg(R.string.msg_a11y_not_running))
-            else { state = State.WAITING; message = Msg(R.string.msg_return_to_app); notifyUi() }
+        val now = SystemClock.elapsedRealtime()
+        if (activity == null || !foreground) {
+            state = State.WAITING
+            message = Msg(R.string.msg_return_to_app)
+            notifyUi()
             return
         }
         if (mode == Mode.AUTO && TapStartService.instance == null) {
             pause(Msg(R.string.msg_a11y_not_running))
             return
         }
-        // Check the throttle right before launching so no code path can go below the interval.
-        val now = SystemClock.elapsedRealtime()
-        if (lastLaunchAt != 0L && now < nextAllowedAt) { scheduleNext(); return }
+        // Check the throttle and the settle time right before launching so no code path can skip either.
+        if ((lastLaunchAt != 0L && now < nextAllowedAt) || now < resumedAt + RESUME_SETTLE_MS) {
+            scheduleNext()
+            return
+        }
 
         val intent = Intent()
             .setClassName(EDITOR_PKG, EDITOR_ACTIVITY)
             .setData(p.uri)
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        if (activity == null) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        Logs.i { "launching ${p.name} from ${if (activity != null) "activity" else "accessibility service"}" }
+        Logs.i { "launching ${p.name}" }
         try {
-            ctx.startActivity(intent)
+            activity.startActivity(intent)
         } catch (e: Exception) {
             pause(Msg(R.string.msg_open_failed, listOf("${e.javaClass.simpleName} ${e.message.orEmpty()}")))
             return
@@ -195,7 +219,7 @@ object Queue {
             sched.postDelayed({ checkTimeout() }, BUTTON_TIMEOUT_MS)
         } else {
             // The user taps Start themselves, and the next launch waits until they return.
-            History.markSent(ctx, p)
+            History.markSent(activity, p)
             index++
             state = State.WAITING
             message = Msg(R.string.msg_opened_semi, listOf(p.name, pos, items.size))
@@ -249,16 +273,21 @@ object Queue {
 object AppSettings {
     private const val PREF = "settings"
 
+    /** Kept across launches because a user who needs the full search usually needs it every time. */
+    var fullResultScan = false
+
     fun load(ctx: Context) {
         val sp = ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE)
         Queue.intervalMs = sp.getLong("interval_ms", Queue.DEFAULT_INTERVAL_MS)
         Queue.mode = runCatching { Queue.Mode.valueOf(sp.getString("mode", null) ?: "") }.getOrDefault(Queue.Mode.AUTO)
+        fullResultScan = sp.getBoolean("full_result_scan", false)
     }
 
     fun save(ctx: Context) {
         ctx.getSharedPreferences(PREF, Context.MODE_PRIVATE).edit()
             .putLong("interval_ms", Queue.intervalMs)
             .putString("mode", Queue.mode.name)
+            .putBoolean("full_result_scan", fullResultScan)
             .apply()
     }
 }

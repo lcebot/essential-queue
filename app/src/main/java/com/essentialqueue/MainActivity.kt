@@ -19,6 +19,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -88,6 +90,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         resumedInstance = null
+        Queue.onAppPaused()
         super.onPause()
     }
 }
@@ -122,6 +125,7 @@ private fun App(tick: Int) {
     var rangeStart by remember { mutableLongStateOf(todayUtc - 6 * DAY_MS) }
     var rangeEnd by remember { mutableLongStateOf(todayUtc) }
     var pickerOpen by remember { mutableStateOf(false) }
+    var fullScan by remember { mutableStateOf(AppSettings.fullResultScan) }
 
     var hasPhotoPerm by remember { mutableStateOf(hasPhotoPermission(ctx)) }
     val permLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
@@ -147,7 +151,7 @@ private fun App(tick: Int) {
             val from = utcDayToLocalStart(rangeStart)
             val to = utcDayToLocalStart(rangeEnd + DAY_MS)
             val r = withContext(Dispatchers.IO) {
-                EssentialScanner.scan(ctx, from, to) { d, t -> scanProgress = if (t == 0) 1f else d.toFloat() / t }
+                EssentialScanner.scan(ctx, from, to, fullScan) { d, t -> scanProgress = if (t == 0) 1f else d.toFloat() / t }
             }
             val sent = History.load(ctx)
             r.candidates.forEach { it.sentBefore = it.historyKey in sent }
@@ -244,6 +248,13 @@ private fun App(tick: Int) {
                     onPick = { haptic.tap(); pickerOpen = true },
                     onQuick = { days -> haptic.toggle(true); rangeEnd = todayUtc; rangeStart = todayUtc - (days - 1) * DAY_MS },
                     onScan = { haptic.confirm(); doScan() },
+                    fullScan = fullScan,
+                    onFullScan = { on ->
+                        haptic.toggle(on)
+                        fullScan = on
+                        AppSettings.fullResultScan = on
+                        AppSettings.save(ctx)
+                    },
                 )
                 }
             }
@@ -374,6 +385,7 @@ private fun fmtUtcDay(utcMs: Long): String =
 private fun DateRangeCard(
     start: Long, end: Long, today: Long, enabled: Boolean,
     onPick: () -> Unit, onQuick: (Int) -> Unit, onScan: () -> Unit,
+    fullScan: Boolean, onFullScan: (Boolean) -> Unit,
 ) {
     val cs = MaterialTheme.colorScheme
     Card(shape = RoundedCornerShape(28.dp), modifier = Modifier.fillMaxWidth(),
@@ -412,7 +424,26 @@ private fun DateRangeCard(
                     FilterChip(selected = sel, onClick = { onQuick(d) }, enabled = enabled, label = { Text(stringResource(labelRes)) })
                 }
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(4.dp))
+            // The whole row is the touch target, so the long label is as easy to hit as the box itself.
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .toggleable(value = fullScan, enabled = enabled, role = Role.Checkbox, onValueChange = onFullScan)
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // The row handles the click, so the box itself stays passive to avoid a double toggle.
+                Checkbox(checked = fullScan, onCheckedChange = null, enabled = enabled)
+                Spacer(Modifier.width(4.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.full_scan_title), style = MaterialTheme.typography.bodyLarge)
+                    Text(stringResource(R.string.full_scan_desc), style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Spacer(Modifier.height(8.dp))
             Button(onClick = onScan, enabled = enabled, shapes = ButtonDefaults.shapes(),
                 modifier = Modifier.fillMaxWidth().height(56.dp)) {
                 Icon(Icons.Rounded.Search, null); Spacer(Modifier.width(8.dp))

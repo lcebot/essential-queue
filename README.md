@@ -49,7 +49,7 @@ The queue pauses when something unexpected happens, for example a dialog appears
 - **What gets listed:** every Leica Essential mode is supported, including M9, M3 and any future `Legend.*` mode. A photo is listed only if its embedded data passes the same integrity check the Editor uses.
 - **What gets skipped:** result images created by the Editor are never listed.
 - **What is unchecked and hidden by default:**
-  - originals that already have a result in your gallery
+  - originals that already have a result in your gallery. By default results are looked for near the selected dates. Turn on **Search the whole camera folder for results** in the date card to check every photo, which is slower.
   - photos this app has sent before
 
 ## Privacy
