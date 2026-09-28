@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- English is the default so every non-Chinese locale falls back to it. Chinese lives in values-zh. -->
+<resources>
+    <string name="app_name">Essential Queue</string>
+    <string name="a11y_label">Essential Queue: tap Start</string>
+    <string name="a11y_desc">Only acts while this app\'s queue is running and has just opened a photo in the Gallery Editor. It taps the Leica Essential \"Start\" button (com.miui.mediaeditor:id/render_start) once, then goes back. It does not read other apps or tap anything else.</string>
+
+    <string name="subtitle">Queue Leica Essential photos</string>
+    <string name="action_scan">Scan</string>
+    <string name="fab_pause">Pause</string>
+    <string name="fab_continue">Continue</string>
+    <plurals name="fab_start">
+        <item quantity="one">Start %d photo</item>
+        <item quantity="other">Start %d photos</item>
+    </plurals>
+
+    <string name="state_idle">Ready</string>
+    <string name="state_waiting">Waiting</string>
+    <string name="state_opening">Opening editor</string>
+    <string name="state_clicked">Waiting for editor</string>
+    <string name="state_paused">Paused</string>
+    <string name="state_done">All done</string>
+    <string name="progress_submitted">%1$d of %2$d submitted</string>
+    <string name="countdown_seconds">%ds</string>
+    <string name="btn_skip">Skip</string>
+    <string name="btn_mark_done">Already submitted</string>
+
+    <string name="setup_title">Setup</string>
+    <string name="setup_photos_title">Photo access</string>
+    <string name="setup_photos_desc">Read-only access to DCIM/Camera. Choose \"Allow all\".</string>
+    <string name="setup_grant">Allow</string>
+    <string name="setup_editor_title">Gallery Editor</string>
+    <string name="setup_editor_desc">Requires com.miui.mediaeditor</string>
+    <string name="setup_a11y_title">Auto-tap \"Start\"</string>
+    <string name="setup_a11y_desc">Turn on \"%s\" in Accessibility settings</string>
+    <string name="setup_open">Open</string>
+    <string name="cd_ready">Ready</string>
+    <string name="cd_missing">Missing</string>
+
+    <string name="settings_mode">Mode</string>
+    <string name="mode_auto">Auto</string>
+    <string name="mode_semi">Semi-auto</string>
+    <string name="mode_auto_desc">Opens each photo in the editor, taps \"Start\", then goes back.</string>
+    <string name="mode_semi_desc">Opens each photo in the editor. You tap \"Start\" and return to this app. The next photo opens when the timer ends.</string>
+    <string name="settings_interval">Delay</string>
+    <string name="interval_value">%d s per photo</string>
+    <string name="interval_none">No extra delay</string>
+    <string name="interval_hint">The Gallery Editor already processes one photo at a time. An extra delay spaces out uploads, which lowers the chance of your account being limited or blocked.</string>
+    <string name="interval_warning">Short delays send many photos to the server in a short time. Your account may be limited or blocked.</string>
+
+    <string name="date_title">Date taken</string>
+    <string name="date_from">From</string>
+    <string name="date_to">To</string>
+    <string name="quick_today">Today</string>
+    <string name="quick_7_days">Last 7 days</string>
+    <string name="quick_30_days">Last 30 days</string>
+    <string name="scan_button">Scan DCIM/Camera</string>
+    <string name="picker_title">Select dates</string>
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
+
+    <string name="section_photos">Photos</string>
+    <string name="select_all">Select all</string>
+    <string name="select_none">Select none</string>
+    <string name="filter_show_processed">Show processed</string>
+    <string name="filter_show_sent">Show sent</string>
+    <string name="tag_processed">Has result</string>
+    <string name="tag_sent">Sent before</string>
+    <string name="size_mb">%.1f MB</string>
+    <string name="empty_title">Pick a date range, then tap \"Scan\"</string>
+    <string name="empty_desc">After scanning, uncheck any photos you don\'t want.</string>
+    <string name="summary_scanned">Essential originals: %2$d of %1$d scanned</string>
+    <string name="summary_modes">" (%s)"</string>
+    <string name="summary_broken">"; %d failed the integrity check"</string>
+    <string name="list_separator">", "</string>
+    <string name="info_separator">" - "</string>
+
+    <string name="msg_loaded">Loaded: %d</string>
+    <string name="msg_queue_empty">The queue is empty</string>
+    <string name="msg_need_a11y">Auto mode needs the accessibility service</string>
+    <string name="msg_skipped">Skipped. Tap \"Continue\" to go on.</string>
+    <string name="msg_marked_done">Marked as submitted. Tap \"Continue\" to go on.</string>
+    <string name="msg_done">All done</string>
+    <string name="msg_waiting">Waiting %d s</string>
+    <string name="msg_opening">Opening...</string>
+    <string name="msg_a11y_not_running">The accessibility service is not running. Paused.</string>
+    <string name="msg_a11y_turned_off">The accessibility service was turned off. Paused.</string>
+    <string name="msg_return_to_app">Return to this app to continue</string>
+    <string name="msg_open_failed">Could not open the editor: %s</string>
+    <string name="msg_opened">Opened %1$s (%2$d of %3$d)</string>
+    <string name="msg_opened_semi">Opened %1$s (%2$d of %3$d)\nTap \"Start\" in the editor, then return to this app.</string>
+    <string name="msg_clicked">Tapped Start: %s</string>
+    <string name="msg_accepted">Submitted. The editor will process it in the background.</string>
+    <string name="msg_paused_manually">Paused</string>
+    <string name="msg_timeout_button">The \"Start\" button did not become available within 25 seconds.\nCheck the editor (the photo may not be supported, or you may need to sign in). Then tap \"Continue\", or tap \"Skip\".</string>
+    <string name="msg_timeout_accept">The editor did not start processing after the tap. A sign-in, mobile data or notification dialog may have appeared.\nIf the editor started processing after you handled it, tap \"Already submitted\" so the photo is not sent twice. Otherwise tap \"Continue\" to retry this photo.</string>
+</resources>

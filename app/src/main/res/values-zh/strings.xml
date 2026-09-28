@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">徕卡一瞬批处理</string>
+    <string name="a11y_label">徕卡一瞬批处理：自动点“开始”</string>
+    <string name="a11y_desc">只在本 App 的队列正在运行、且刚刚打开了图库编辑器的徕卡一瞬页面时，替你点击一次“开始处理”按钮（com.miui.mediaeditor:id/render_start），随后返回。不读取其他 App 的内容，不点击其他任何按钮。</string>
+
+    <string name="subtitle">徕卡一瞬一键排队</string>
+    <string name="action_scan">扫描</string>
+    <string name="fab_pause">暂停</string>
+    <string name="fab_continue">继续</string>
+    <plurals name="fab_start">
+        <item quantity="other">开始处理 %d 张</item>
+    </plurals>
+
+    <string name="state_idle">就绪</string>
+    <string name="state_waiting">排队中</string>
+    <string name="state_opening">正在打开编辑器</string>
+    <string name="state_clicked">等待编辑器接收</string>
+    <string name="state_paused">已暂停</string>
+    <string name="state_done">全部完成</string>
+    <string name="progress_submitted">已提交 %1$d 张，共 %2$d 张</string>
+    <string name="countdown_seconds">%d 秒</string>
+    <string name="btn_skip">跳过这张</string>
+    <string name="btn_mark_done">我已手动提交</string>
+
+    <string name="setup_title">准备工作</string>
+    <string name="setup_photos_title">读取照片</string>
+    <string name="setup_photos_desc">只读访问 DCIM/Camera，请选择“允许全部”</string>
+    <string name="setup_grant">授权</string>
+    <string name="setup_editor_title">图库编辑器</string>
+    <string name="setup_editor_desc">需要 com.miui.mediaeditor</string>
+    <string name="setup_a11y_title">自动点击“开始”</string>
+    <string name="setup_a11y_desc">在无障碍设置里开启“%s”</string>
+    <string name="setup_open">去开启</string>
+    <string name="cd_ready">已就绪</string>
+    <string name="cd_missing">缺失</string>
+
+    <string name="settings_mode">模式</string>
+    <string name="mode_auto">全自动</string>
+    <string name="mode_semi">半自动</string>
+    <string name="mode_auto_desc">自动打开编辑器并点击“开始”，完成后返回。</string>
+    <string name="mode_semi_desc">自动打开编辑器，由你点击“开始”并返回本 App，倒计时结束后打开下一张。</string>
+    <string name="settings_interval">间隔</string>
+    <string name="interval_value">每张 %d 秒</string>
+    <string name="interval_none">不额外等待</string>
+    <string name="interval_hint">图库编辑器本身就是一张一张处理的。额外的间隔可以拉开上传频率，降低账号被限制或封禁的风险。</string>
+    <string name="interval_warning">间隔太短会在短时间内向服务器发送大量照片，账号可能被限制或封禁。</string>
+
+    <string name="date_title">拍摄日期</string>
+    <string name="date_from">从</string>
+    <string name="date_to">到</string>
+    <string name="quick_today">今天</string>
+    <string name="quick_7_days">近 7 天</string>
+    <string name="quick_30_days">近 30 天</string>
+    <string name="scan_button">扫描 DCIM/Camera</string>
+    <string name="picker_title">选择拍摄日期</string>
+    <string name="ok">确定</string>
+    <string name="cancel">取消</string>
+
+    <string name="section_photos">照片</string>
+    <string name="select_all">全选</string>
+    <string name="select_none">全不选</string>
+    <string name="filter_show_processed">显示已有结果的</string>
+    <string name="filter_show_sent">显示已发送过的</string>
+    <string name="tag_processed">已有结果</string>
+    <string name="tag_sent">已发送过</string>
+    <string name="size_mb">%.1f MB</string>
+    <string name="empty_title">选好日期范围后点“扫描”</string>
+    <string name="empty_desc">扫描后可以取消勾选不想处理的照片</string>
+    <string name="summary_scanned">在 %1$d 张照片中找到 %2$d 张徕卡一瞬原片</string>
+    <string name="summary_modes">（%s）</string>
+    <string name="summary_broken">；%d 张校验不通过，已忽略</string>
+    <string name="list_separator">、</string>
+    <string name="info_separator">，</string>
+
+    <string name="msg_loaded">已载入 %d 张</string>
+    <string name="msg_queue_empty">队列为空</string>
+    <string name="msg_need_a11y">自动模式需要先开启无障碍服务</string>
+    <string name="msg_skipped">已跳过，点“继续”接着处理</string>
+    <string name="msg_marked_done">已记为提交，点“继续”接着处理</string>
+    <string name="msg_done">全部完成</string>
+    <string name="msg_waiting">等待节流 %d 秒</string>
+    <string name="msg_opening">准备打开</string>
+    <string name="msg_a11y_not_running">无障碍服务未运行，已暂停</string>
+    <string name="msg_a11y_turned_off">无障碍服务被关闭，已暂停</string>
+    <string name="msg_return_to_app">回到本 App 后继续</string>
+    <string name="msg_open_failed">打开编辑器失败：%s</string>
+    <string name="msg_opened">已打开 %1$s（第 %2$d 张，共 %3$d 张）</string>
+    <string name="msg_opened_semi">已打开 %1$s（第 %2$d 张，共 %3$d 张）\n请在编辑器里点“开始”，然后返回本 App</string>
+    <string name="msg_clicked">已点击开始：%s</string>
+    <string name="msg_accepted">已提交，编辑器会在后台排队处理</string>
+    <string name="msg_paused_manually">已手动暂停</string>
+    <string name="msg_timeout_button">25 秒内没有等到可点击的“开始”按钮。\n请看一下编辑器页面（可能不支持这张图或需要登录），处理后点“继续”，或点“跳过这张”。</string>
+    <string name="msg_timeout_accept">点击后编辑器没有进入处理状态，可能弹出了登录、流量或通知权限对话框。\n如果你处理完弹窗后编辑器已经开始处理，请点“我已手动提交”（避免重复提交）；否则点“继续”重试这张。</string>
+</resources>

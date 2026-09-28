@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Essential Queue opens Leica Essential photos in the system Gallery Editor and taps its Start button.
+  Photos are read only, no network access is requested, and all uploading stays inside the editor.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Needed to find Essential originals in DCIM/Camera. Access is read-only. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <!-- The editor must stay on screen to be tapped, so the screen is kept on while the queue runs. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- Package visibility rules hide the editor unless it is declared here. -->
+    <queries>
+        <package android:name="com.miui.mediaeditor" />
+    </queries>
+
+    <application
+        android:allowBackup="false"
+        android:label="@string/app_name"
+        android:localeConfig="@xml/locales_config"
+        android:supportsRtl="true"
+        android:theme="@android:style/Theme.Material.NoActionBar">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Limited to com.miui.mediaeditor and to the Start button. See res/xml/tap_start_service.xml. -->
+        <service
+            android:name=".TapStartService"
+            android:exported="false"
+            android:label="@string/a11y_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/tap_start_service" />
+        </service>
+    </application>
+</manifest>

@@ -1,0 +1,134 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write   # Needed to publish a Release when a tag is pushed
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0   # The version script needs the full history and all tags
+
+      # See the script header for the tag format and how names and codes are derived.
+      - name: Compute version
+        run: bash .github/scripts/version.sh
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # The repo does not ship a Gradle wrapper, so install a pinned Gradle version here. This also caches dependencies.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v5
+        with:
+          gradle-version: '8.14.3'
+
+      # The runner ships an Android SDK, but the compileSdk 36 platform and its licenses must be present.
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platforms;android-36 build-tools;36.0.0'
+
+      # Optional release signing. Add these repository secrets under Settings, Secrets and variables, Actions:
+      #   SIGNING_KEYSTORE_BASE64  base64 of the key file (.p12, .pfx or .jks)
+      #   SIGNING_STORE_PASSWORD   password of the key file
+      #   SIGNING_KEY_ALIAS        optional, defaults to the first private key entry in the file
+      #   SIGNING_KEY_PASSWORD     optional, defaults to the store password
+      # Without them the APK is signed with a throwaway debug key and cannot update an earlier install.
+      - name: Decode keystore (optional)
+        env:
+          KEYSTORE_B64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+          STORE_PASS: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::warning::No signing secrets set. The APK uses a throwaway debug key and cannot update an earlier install."
+            exit 0
+          fi
+          # Pasted secrets often pick up whitespace or line breaks, which base64 -d rejects.
+          printf '%s' "$KEYSTORE_B64" | tr -d ' \r\n\t' | base64 -d > "$RUNNER_TEMP/release.key"
+          # The file name is lost in the secret, so detect the format from the header. JKS starts with FE ED FE ED.
+          if [ "$(head -c 4 "$RUNNER_TEMP/release.key" | xxd -p)" = "feedfeed" ]; then
+            ext=jks; type=JKS
+          else
+            ext=p12; type=PKCS12
+          fi
+          ks="$RUNNER_TEMP/release.$ext"
+          mv "$RUNNER_TEMP/release.key" "$ks"
+
+          # Listing the store checks the password early and lets the alias be found automatically.
+          if ! listing="$(keytool -J-Duser.language=en -list -v -keystore "$ks" -storetype "$type" -storepass "$STORE_PASS" 2>&1)"; then
+            echo "::error::Cannot open the key file. Check SIGNING_STORE_PASSWORD and SIGNING_KEYSTORE_BASE64."
+            echo "$listing" | grep -iE "error|exception" | head -n 3
+            exit 1
+          fi
+          if [ -z "$KEY_ALIAS" ]; then
+            KEY_ALIAS="$(printf '%s\n' "$listing" | awk '/^Alias name: /{a=substr($0,13)} /^Entry type: PrivateKeyEntry/{print a; exit}')"
+            if [ -z "$KEY_ALIAS" ]; then
+              echo "::error::The key file has no PrivateKeyEntry, so it cannot sign the APK."
+              exit 1
+            fi
+            echo "Detected key alias: $KEY_ALIAS"
+          fi
+          {
+            echo "SIGNING_KEYSTORE_PATH=$ks"
+            echo "SIGNING_STORE_TYPE=$type"
+            echo "SIGNING_KEY_ALIAS=$KEY_ALIAS"
+          } >> "$GITHUB_ENV"
+          echo "Using $type keystore from secrets"
+
+      - name: Build
+        env:
+          # Path, type and alias come from GITHUB_ENV. Setting the alias here again would overwrite a detected one with an empty value.
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        run: gradle --no-daemon assembleRelease
+
+      # Fail the build unless the APK really carries an APK Signature Scheme v3 block.
+      - name: Verify v3 signature
+        run: |
+          apk=app/build/outputs/apk/release/app-release.apk
+          apksigner="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -n 1)apksigner"
+          out="$("$apksigner" verify --verbose --print-certs "$apk")"
+          echo "$out" | grep -E "Verified using|Signer #1 certificate (DN|SHA-256)"
+          if ! echo "$out" | grep -q "Verified using v3 scheme (APK Signature Scheme v3): true"; then
+            echo "::error::The APK has no v3 signature"
+            exit 1
+          fi
+
+      - name: Rename APK
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/release/app-release.apk "dist/EssentialQueue-${VERSION_NAME}.apk"
+          ls -la dist
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: EssentialQueue-${{ github.run_number }}
+          path: dist/*.apk
+          if-no-files-found: error
+
+      - name: Create GitHub Release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.apk
+          generate_release_notes: true
