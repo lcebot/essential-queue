@@ -561,12 +561,18 @@ private fun SettingsCard(enabled: Boolean, tick: Int) {
                     color = MaterialTheme.colorScheme.primary,
                 )
             }
+            // Stateless Slider overloads are deprecated in the 1.5.0 alpha line, so drive it through SliderState.
+            val sliderState = remember(tick) {
+                SliderState(
+                    value = interval,
+                    steps = 29,               // 10-second steps are fine enough without making the slider fiddly
+                    valueRange = 0f..(Queue.MAX_INTERVAL_MS / 1000).toFloat(),
+                )
+            }
             Slider(
-                value = interval,
-                onValueChange = { interval = it },
+                state = sliderState,
+                onValueChange = { sliderState.value = it; interval = it },
                 onValueChangeFinished = { Queue.intervalMs = interval.roundToInt() * 1000L; AppSettings.save(ctx) },
-                valueRange = 0f..(Queue.MAX_INTERVAL_MS / 1000).toFloat(),
-                steps = 29,               // 10-second steps are fine enough without making the slider fiddly
                 enabled = enabled,
             )
             Text(stringResource(R.string.interval_hint),

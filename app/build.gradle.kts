@@ -1,16 +1,17 @@
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
     namespace = "com.essentialqueue"
-    compileSdk = 36
+    // The Compose Material 3 alpha line is compiled against API 37 and requires apps to match.
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.essentialqueue"
         minSdk = 35
+        // Kept at 36 until the Android 17 behavior changes are checked against the editor flow.
         targetSdk = 36
         // CI derives these from the git tag (see .github/scripts/version.sh). Local builds use 0.1 and 100.
         versionCode = System.getenv("VERSION_CODE")?.toIntOrNull() ?: 100
@@ -59,15 +60,11 @@ android {
     buildFeatures { compose = true }
 }
 
-kotlin {
-    compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17) }
-}
-
 dependencies {
     // Material 3 Expressive is only available on the 1.5.0 alpha line and needs @OptIn.
     // Bump this version when a newer alpha or the stable release is out.
     implementation("androidx.compose.material3:material3:1.5.0-alpha29")
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
-    implementation("androidx.activity:activity-compose:1.11.0")
-    implementation("androidx.core:core-ktx:1.17.0")
+    implementation("androidx.activity:activity-compose:1.13.0")
+    implementation("androidx.core:core-ktx:1.19.1")
 }

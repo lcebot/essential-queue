@@ -38,13 +38,13 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v5
         with:
-          gradle-version: '8.14.3'
+          gradle-version: '9.8.0'
 
-      # The runner ships an Android SDK, but the compileSdk 36 platform and its licenses must be present.
+      # The runner ships an Android SDK, but the compileSdk 37 platform and its licenses must be present.
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: 'platforms;android-36 build-tools;36.0.0'
+          packages: 'platforms;android-37 build-tools;36.0.0'
 
       # Optional release signing. Add these repository secrets under Settings, Secrets and variables, Actions:
       #   SIGNING_KEYSTORE_BASE64  base64 of the key file (.p12, .pfx or .jks)
