@@ -41,10 +41,11 @@ jobs:
           gradle-version: '9.8.0'
 
       # The runner ships an Android SDK, but the compileSdk 37 platform and its licenses must be present.
+      # Since API 36.1 platform packages carry a minor version, and AGP maps compileSdk 37 to android-37.0.
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
-          packages: 'platforms;android-37 build-tools;36.0.0'
+          packages: 'platforms;android-37.0 build-tools;36.0.0'
 
       # Optional release signing. Add these repository secrets under Settings, Secrets and variables, Actions:
       #   SIGNING_KEYSTORE_BASE64  base64 of the key file (.p12, .pfx or .jks)
